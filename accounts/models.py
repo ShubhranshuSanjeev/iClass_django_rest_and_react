@@ -54,7 +54,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name_plural = _("users")
     
     def get_full_name(self):
-        full_name = ' '.join(self.first_name, self.last_name)
+        full_name = ' '.join([self.first_name, self.last_name])
         return full_name
 
     def get_short_name(self):

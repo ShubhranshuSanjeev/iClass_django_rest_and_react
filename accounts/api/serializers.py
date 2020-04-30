@@ -2,8 +2,6 @@ from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
 
 from rest_framework import serializers
-from rest_framework.authtoken.models import Token
-from knox.models import AuthToken
 
 from accounts.models import User, Student, Teacher
 
@@ -15,6 +13,8 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         fields = (
             'username', 
             'email',
+            'first_name',
+            'last_name',
             'is_student',
             'is_teacher',
             'password',
@@ -58,7 +58,9 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             username = validated_data.get('username'),
             email = validated_data.get('email'),
             is_teacher = validated_data.get('is_teacher'),
-            is_student = validated_data.get('is_student')
+            is_student = validated_data.get('is_student'),
+            first_name = validated_data.get('first_name'),
+            last_name = validated_data.get('last_name'),
         )
         user_instance.set_password(validated_data.get('password'))
         user_instance.save()
@@ -76,12 +78,19 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     ''' 
-    UserSerializer is used to pass the user informantion back to client
+    UserSerializer is used to pass the user's informantion back to client
     after successfull login or registration. 
     '''
+    fullname        = serializers.SerializerMethodField() 
     class Meta:
         model = User
-        fields = ('username', 'email')
+        fields = (
+            'username', 'email',
+            'fullname',
+        )
+    
+    def get_fullname(self, obj):
+        return obj.get_full_name()
 
 class LoginUserSerializer(serializers.Serializer):
     email       = serializers.CharField()
@@ -92,6 +101,9 @@ class LoginUserSerializer(serializers.Serializer):
         password = data.get('password')
 
         if email and password:
+            '''
+            Checking whether the credentials provided are correct or not
+            '''
             user = authenticate(
                         request=self.context.get('request'), 
                         email=email, 
@@ -102,6 +114,10 @@ class LoginUserSerializer(serializers.Serializer):
                 msg = _('Unable to log in with provided credentials.')
                 raise serializers.ValidationError(msg, code='authorization')
         else:
+            '''
+            If either of the fields(email, password) is missing,
+            then raise a validation error 
+            '''
             msg = _('Must include "email" and "password".')
             raise serializers.ValidationError(msg, code='authorization')
 

@@ -3,12 +3,13 @@ from django.utils.translation import ugettext_lazy as _
 from accounts.models import Student, Teacher
 
 class Classroom(models.Model):
-    classroom_id            = models.UUIDField(_("classroom id"),primary_key=True, editable=False)
-    room_number             = models.IntegerField(_("room number"),blank=True)
-    course_name             = models.CharField(_("course name"), max_length=60, blank=False)
-    teacher_id              = models.ForeignKey(Teacher, related_name="taking_classes", on_delete=models.CASCADE)
-    student_id              = models.ManyToManyField(Student, related_name="attending_classes")
-    
+    classroom_id                    = models.UUIDField(_("classroom id"),primary_key=True, editable=False)
+    room_number                     = models.IntegerField(_("room number"),blank=True)
+    course_name                     = models.CharField(_("course name"), max_length=60, blank=False)
+    teacher_id                      = models.ForeignKey(Teacher, related_name="taking_classes", on_delete=models.CASCADE)
+    student_id                      = models.ManyToManyField(Student, related_name="attending_classes")
+    joining_permission              = models.BooleanField(_("joining permission"), default=True)
+
     class Meta:
         verbose_name = _("Classroom")
         verbose_name_plural = _("Classrooms")
@@ -30,6 +31,10 @@ class Classroom(models.Model):
     
     def get_assignment_submissions(self):
         return self.get_assignment_submissions.all()
+
+class JoinQueue(models.Model):
+    classroom_id            = models.ForeignKey(Classroom, related_name='awaiting_join_requests', on_delete=models.CASCADE)
+    student_id              = models.ForeignKey(Student, related_name='join_request_queued', on_delete=models.CASCADE)
 
 class Assignment(models.Model):
     classroom_id            = models.ForeignKey(Classroom, related_name="assignments", on_delete=models.CASCADE)

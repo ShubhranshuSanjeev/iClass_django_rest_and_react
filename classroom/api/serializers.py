@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 
-from classroom.models import Classroom,Assignment,Note
+from classroom.models import Classroom,JoinQueue,Assignment,Note
 from accounts.models import Teacher, Student, User
 from accounts.api.serializers import UserSerializer
 
@@ -35,13 +35,12 @@ class CreateClassroomSerializer(serializers.ModelSerializer):
         class_instance.save()
         return class_instance
 
-class ClassroomListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Classroom
-        fields = (
-            'classroom_id',
-            'course_name',
-        )
+class ClassroomListSerializer(serializers.Serializer):
+    classroom_id = serializers.UUIDField()
+    course_name = serializers.CharField()
+
+
+
 
 ''' This serializer is just for testing purpose '''
 class ClassroomSerializer(serializers.ModelSerializer):
@@ -54,26 +53,36 @@ class ClassroomSerializer(serializers.ModelSerializer):
             'teacher_id',
         )
 
-class ClassroomRetriveSerializer(serializers.ModelSerializer):
-    teacher        = serializers.SerializerMethodField()
-    students       = serializers.SerializerMethodField()
-    class Meta:
-        model = Classroom
-        fields = (
-            'classroom_id',
-            'room_number',
-            'course_name',
-
-            'teacher',
-            'students',
-        )
+class ClassroomRetriveSerializer(serializers.Serializer):
+    teacher         = serializers.SerializerMethodField()
+    students        = serializers.SerializerMethodField()
+    classroom_id    = serializers.UUIDField()
+    room_number     = serializers.IntegerField()
+    course_name     = serializers.CharField()
     
     def get_teacher(self, obj):
-        teacher = obj.teacher_id.user.get_full_name()
-        return teacher
+        return Classroom.objects.get(
+                        classroom_id = obj.get('classroom_id')
+                    ).teacher_id.user.username
+
     def get_students(self, obj):
-        qs = obj.student_id.all()
+        qs = Classroom.objects.get(
+                        classroom_id = obj.get('classroom_id')
+                    ).student_id.all()
         students = []
         for student in qs:
-            students.append(UserSerializer(student.user).data)
+            students.append(UserSerializer(student.get_user()).data)
         return students
+
+
+class QueuedStudentsSerializer(serializers.Serializer):
+    student_name        = serializers.SerializerMethodField()
+
+    def get_student_name(self, obj):
+        return obj.student_id.user.username
+
+class QueuedCoursesSerializer(serializers.Serializer):
+    course_name         = serializers.SerializerMethodField()
+    
+    def get_course_name(self, obj):
+        return obj.classroom_id.course_name

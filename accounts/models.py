@@ -70,10 +70,10 @@ class Teacher(models.Model):
     user = models.OneToOneField(User, related_name="teacher", on_delete=models.CASCADE)
 
     def get_user(self):
-        return self.user.username
+        return self.user
 
 class Student(models.Model):
     user = models.OneToOneField(User, related_name="student", on_delete=models.CASCADE)
 
     def get_user(self):
-        return self.user.username
+        return self.user

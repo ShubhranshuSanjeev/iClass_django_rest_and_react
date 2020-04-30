@@ -1,15 +1,20 @@
+from collections import OrderedDict
+
 from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.mixins import ListModelMixin
 
 from accounts.models import User
-from classroom.models import Classroom
-from .permissions import IsTeacher
+from classroom.models import Classroom, JoinQueue
+from .permissions import IsTeacher, IsStudent
 from .serializers import (
             CreateClassroomSerializer, 
             ClassroomSerializer, 
             ClassroomListSerializer,
-            ClassroomRetriveSerializer
+            ClassroomRetriveSerializer,
+            QueuedCoursesSerializer,
+            QueuedStudentsSerializer,
         )
 
 '''
@@ -40,26 +45,81 @@ or attending as a student
 
 Both students and teacher can use this endpoint
 '''
-class ClassListAPIView(generics.ListAPIView):
-    model = Classroom
+class ClassListAPIView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        if self.request.user.is_teacher:
+            class_list = ClassroomListSerializer(self.request.user.teacher.taking_classes.all(), many=True)
+            return Response({
+                'class_list': class_list.data
+            }, status=status.HTTP_200_OK)
+        
+        class_list = ClassroomListSerializer(self.request.user.student.attending_classes.all(), many=True)
+        queued_classes = QueuedCoursesSerializer(self.request.user.student.join_request_queued.all(), many=True)
+        return Response({
+            'class_list' : class_list.data,
+            'queued_classes': queued_classes.data
+        }, status=status.HTTP_200_OK) 
+
+
+class ClassRetriveAPIView(generics.GenericAPIView):
     permissions = [permissions.IsAuthenticated]
-    serializer_class = ClassroomListSerializer
 
-    def get_queryset(self):
-        if self.request.user.is_student:
-            return self.request.user.student.attending_classes
-        else:
-            return self.request.user.teacher.taking_classes
+    def get(self, request, *args, **kwargs):
+        classroom = Classroom.objects.get(classroom_id = kwargs.get('pk'))
+        pending_requests = classroom.awaiting_join_requests.all()
+        data = OrderedDict({
+                'classroom_id': classroom.classroom_id,
+                'room_number': classroom.room_number,
+                'course_name': classroom.course_name
+            })
 
-'''
----------
-'''
-class ClassRetriveAPIView(generics.RetrieveAPIView):
-    model = Classroom
-    permissions = [permissions.IsAuthenticated, IsTeacher]
-    serializer_class = ClassroomRetriveSerializer
-    lookup_field = 'classroom_id'
-    lookup_url_kwarg = 'pk'
-    
-    def get_queryset(self):
-        return Classroom.objects.all()
+        classroom = ClassroomRetriveSerializer(data=data, context=self.get_serializer_context())
+        classroom.is_valid(raise_exception=True)
+        if request.user.is_teacher:
+            pending_requests = QueuedStudentsSerializer(pending_requests, many=True)
+            return Response({
+                "class_details": classroom.data,
+                "pending_requests": pending_requests.data
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            "class_details": classroom.data,
+        }, status=status.HTTP_200_OK)
+
+         
+class ClassJoinAPIView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsStudent]
+
+    def post(self, request, *args, **kwargs):
+        classroom = Classroom.objects.get(classroom_id = self.request.data.get('classroom_id'))
+
+        if classroom.student_id.filter(user=self.request.user):
+            return Response({
+                'message':_('You are already enrolled in the course')
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if classroom.joining_permission:
+            if self.request.user.student.join_request_queued.filter(classroom_id=classroom):
+                return Response({
+                    'message': _('Your previous request is already there in the waiting queue.\
+                        Wait for the course admin to accept the request')
+                })
+
+            queue_request = JoinQueue(
+                classroom_id = classroom, 
+                student_id = request.user.student
+            )
+            queue_request.save()
+            return Response({
+                'message': _('Your join request has been queued. Wait till the course admin accepts the request.')
+            })
+        
+        student = request.user.student
+        classroom.student_id.add(student)
+        classroom.save()
+
+        return Response({
+            'message': _('You have been successfully enrolled to the classroom.')
+        })

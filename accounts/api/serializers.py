@@ -76,17 +76,15 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         return user_instance
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.Serializer):
     ''' 
     UserSerializer is used to pass the user's informantion back to client
     after successfull login or registration. 
     ''' 
-    class Meta:
-        model = User
-        fields = (
-            'username', 'email',
-            'first_name', 'last_name',
-        )
+    username            = serializers.CharField()
+    email               = serializers.EmailField()
+    first_name          = serializers.CharField()
+    last_name           = serializers.CharField()
 
 class LoginUserSerializer(serializers.Serializer):
     email       = serializers.CharField()
@@ -119,3 +117,25 @@ class LoginUserSerializer(serializers.Serializer):
 
         data['user'] = user
         return data
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = (
+            'first_name', 'last_name',
+            'email'
+        )
+    
+    def validate(self, data):
+        email = data.get('email')
+        qs = User.objects.filter(email__iexact=email).exclude(username__iexact=self.instance.username)
+        if qs.exists():
+            raise serializers.ValidationError(_('This email address is already being used by another user.'))
+        return data
+    
+    def update(self, instance, validated_data):
+        instance.first_name = validated_data.get('first_name')
+        instance.last_name = validated_data.get('last_name')
+        instance.email = validated_data.get('email')
+        instance.save()
+        return instance

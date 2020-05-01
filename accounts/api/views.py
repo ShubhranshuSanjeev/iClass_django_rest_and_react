@@ -3,7 +3,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from knox.models import AuthToken
 
-from .serializers import RegisterUserSerializer, LoginUserSerializer, UserSerializer
+from .serializers import RegisterUserSerializer, LoginUserSerializer, UserSerializer, UserUpdateSerializer
 from accounts.models import User
 
 '''
@@ -40,6 +40,7 @@ class LoginAPIView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
+
         return Response({
             "user": UserSerializer(user, context=self.get_serializer_context()).data,
             "token": AuthToken.objects.create(user)[1]
@@ -59,38 +60,22 @@ class UserRetriveAPIView(generics.RetrieveAPIView):
 
 class UserUpdateAPIView(generics.GenericAPIView):
     permission_classes = [ permissions.IsAuthenticated, ]
-
-    def get_object(self):
-        return self.request.user
     
     def patch(self, request, *args, **kwargs):
-        first_name = request.data.get('first_name')
-        last_name = request.data.get('last_name')
-        email = request.data.get('email')
-        password = request.data.get('password')
-
-        user = self.get_object()
+        user = self.request.user
         
-        if not user.check_password(password):
+        if not user.check_password(request.data.get('password')):
             return Response({
                 'message': 'Wrong Password cannot update user profile',
             }, status=status.HTTP_401_UNAUTHORIZED)
 
-        if user.email == email:
-            user.first_name = first_name
-            user.last_name = last_name
-            user.save()
-        else:
-            qs = User.objects.filter(email__iexact=email)
-            if qs.exists():
-                return Response({
-                    'message': _('Email is already being used by another user')
-                },status=status.HTTP_401_UNAUTHORIZED)
-            user.first_name = first_name
-            user.last_name = last_name
-            user.email = email
-            user.save()
-
+        serializer = UserUpdateSerializer(user,data={
+                'first_name': request.data.get('first_name'),
+                'last_name': request.data.get('last_name'),
+                'email': request.data.get('email'),
+            })
+        serializer.is_valid(raise_exception=True)
+        user = serializer.update(user, serializer.validated_data)
         return Response({
             'message': "Account Details have been successfully updated",
             'user': UserSerializer(user, context=self.get_serializer_context()).data

@@ -6,7 +6,7 @@ from rest_framework.mixins import ListModelMixin
 
 from accounts.models import User
 from classroom.models import Classroom, JoinQueue
-from .permissions import IsTeacher, IsStudent, DoesTeachClass
+from permissions import IsTeacher, IsStudent, DoesTeachClass
 from .serializers import (
             CreateClassroomSerializer, 
             ClassroomSerializer, 

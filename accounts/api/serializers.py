@@ -80,17 +80,13 @@ class UserSerializer(serializers.ModelSerializer):
     ''' 
     UserSerializer is used to pass the user's informantion back to client
     after successfull login or registration. 
-    '''
-    fullname        = serializers.SerializerMethodField() 
+    ''' 
     class Meta:
         model = User
         fields = (
             'username', 'email',
-            'fullname',
+            'first_name', 'last_name',
         )
-    
-    def get_fullname(self, obj):
-        return obj.get_full_name()
 
 class LoginUserSerializer(serializers.Serializer):
     email       = serializers.CharField()

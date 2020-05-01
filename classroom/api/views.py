@@ -1,5 +1,4 @@
-from collections import OrderedDict
-
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -7,7 +6,7 @@ from rest_framework.mixins import ListModelMixin
 
 from accounts.models import User
 from classroom.models import Classroom, JoinQueue
-from .permissions import IsTeacher, IsStudent
+from .permissions import IsTeacher, IsStudent, DoesTeachClass
 from .serializers import (
             CreateClassroomSerializer, 
             ClassroomSerializer, 
@@ -69,11 +68,11 @@ class ClassRetriveAPIView(generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         classroom = Classroom.objects.get(classroom_id = kwargs.get('pk'))
         pending_requests = classroom.awaiting_join_requests.all()
-        data = OrderedDict({
+        data = {
                 'classroom_id': classroom.classroom_id,
                 'room_number': classroom.room_number,
                 'course_name': classroom.course_name
-            })
+            }
 
         classroom = ClassroomRetriveSerializer(data=data, context=self.get_serializer_context())
         classroom.is_valid(raise_exception=True)
@@ -123,3 +122,39 @@ class ClassJoinAPIView(generics.GenericAPIView):
         return Response({
             'message': _('You have been successfully enrolled to the classroom.')
         })
+
+## Accepting requests to join class view
+class AcceptJoinRequestAPIView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsTeacher, DoesTeachClass]
+
+    def get_object(self):
+        return Classroom.objects.get(classroom_id = self.request.data.get('classroom_id'))
+
+    def post(self, request, *args, **kwargs):
+        classroom = self.get_object()
+        student = User.objects.get(
+                    username = 
+                    self.request.data.get('student_username')
+                ).student
+
+        try:
+            queued_request = JoinQueue.objects.get(
+                                Q(classroom_id = classroom)&
+                                Q(student_id = student) 
+                            )
+            classroom.student_id.add(student)
+            queued_request.delete()
+        except:
+            return Response({
+                'message' : _('No such request found.')
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response({
+            'classroom_id': self.request.data.get('classroom_id'),
+            'student': self.request.data.get('student_username'),
+            'message': _('Request has been accepted.')
+        }, status=status.HTTP_202_ACCEPTED)
+                    
+## Creating new assignments view
+## Creating new notes view
+## Assignmnet submission view

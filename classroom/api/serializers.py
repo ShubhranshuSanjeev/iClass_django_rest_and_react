@@ -79,7 +79,7 @@ class QueuedStudentsSerializer(serializers.Serializer):
     student_name        = serializers.SerializerMethodField()
 
     def get_student_name(self, obj):
-        return obj.student_id.user.username
+        return [obj.student_id.user.username, obj.student_id.user.get_full_name()]
 
 class QueuedCoursesSerializer(serializers.Serializer):
     course_name         = serializers.SerializerMethodField()

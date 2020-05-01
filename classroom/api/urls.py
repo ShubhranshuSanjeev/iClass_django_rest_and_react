@@ -3,7 +3,8 @@ from .views import (
         ClassCreateAPIView, 
         ClassListAPIView, 
         ClassRetriveAPIView, 
-        ClassJoinAPIView
+        ClassJoinAPIView,
+        AcceptJoinRequestAPIView
     )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     re_path(r'^classroom/list/', ClassListAPIView.as_view()),
     re_path(r'^classroom/detail/(?P<pk>[0-9A-Za-z_\-]+)/$', ClassRetriveAPIView.as_view()),
     re_path(r'^classroom/join/$', ClassJoinAPIView.as_view()),
+    re_path(r'^classroom/accept_request/$', AcceptJoinRequestAPIView.as_view()),
 ]

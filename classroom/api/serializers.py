@@ -1,88 +1,144 @@
+import uuid
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
+from django.contrib import auth
 
-from classroom.models import Classroom,JoinQueue,Assignment,Note
-from accounts.models import Teacher, Student, User
+from classroom.models import (
+  Classroom,
+  ClassroomStudents,
+  JoinRequests,
+  Assignment,
+  ReferenceMaterial,
+  AssignmentSubmission
+)
 from accounts.api.serializers import UserSerializer
 
-import uuid
+User = auth.get_user_model()
 
-class CreateClassroomSerializer(serializers.ModelSerializer):
-    class Meta:
-        model       = Classroom
-        fields      = (
-            'room_number', 'course_name',
-        )
-    
-    def validate(self, data):
-        if not data.get('course_name'):
-            raise serializers.ValidationError(_('Course name should be provided.'))
-        return data
-
-    def create(self, data):
-        room_number = data.get('room_number')
-        course_name = data.get('course_name')
-
-        classroom_id = uuid.uuid4()
-        print(data.get('user'))
-        teacher_id   = Teacher.objects.get(user = data.get('user'))
-        class_instance = Classroom(
-                            classroom_id=classroom_id,
-                            room_number=room_number,
-                            course_name=course_name,
-                            teacher_id=teacher_id
-                        )
-        class_instance.save()
-        return class_instance
-
-class ClassroomListSerializer(serializers.Serializer):
-    classroom_id = serializers.UUIDField()
-    course_name = serializers.CharField()
-
-
-
-
-''' This serializer is just for testing purpose '''
 class ClassroomSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Classroom
-        fields = (
-            'classroom_id',
-            'room_number',
-            'course_name',
-            'teacher_id',
-        )
+  teacher = serializers.SerializerMethodField()
+  class Meta:
+    model = Classroom
+    fields = (
+      'id', 'room_number',
+      'course_name', 'joining_permission',
+      'teacher',
+    )
 
-class ClassroomRetriveSerializer(serializers.Serializer):
-    teacher         = serializers.SerializerMethodField()
-    students        = serializers.SerializerMethodField()
-    classroom_id    = serializers.UUIDField()
-    room_number     = serializers.IntegerField()
-    course_name     = serializers.CharField()
-    
-    def get_teacher(self, obj):
-        return Classroom.objects.get(
-                        classroom_id = obj.get('classroom_id')
-                    ).teacher_id.user.username
+  def get_teacher(self, obj):
+    teacher = obj.teacher_id 
+    teacher = UserSerializer(teacher).data
+    return teacher
 
-    def get_students(self, obj):
-        qs = Classroom.objects.get(
-                        classroom_id = obj.get('classroom_id')
-                    ).student_id.all()
-        students = []
-        for student in qs:
-            students.append(UserSerializer(student.get_user()).data)
-        return students
+  def validate(self, data):
+    if not data.get('course_name'):
+      raise serializers.ValidationError( _('Course name should be provided.'))
+    return data
 
+  def create(self, validated_data):
+    room_number = validated_data.get('room_number')
+    course_name = validated_data.get('course_name')
+    joining_permission = validated_data.get('joining_permission')
+    teacher_id = validated_data.get('user')
 
-class QueuedStudentsSerializer(serializers.Serializer):
-    student_name        = serializers.SerializerMethodField()
+    classroom_id = uuid.uuid4()
+    class_instance = Classroom(
+      id=classroom_id,
+      room_number=room_number,
+      course_name=course_name,
+      teacher_id=teacher_id,
+      joining_permission=joining_permission
+    )
+    class_instance.save()
+    return class_instance
 
-    def get_student_name(self, obj):
-        return [obj.student_id.user.username, obj.student_id.user.get_full_name()]
+  def update(self, instance, validated_data):
+    instance.room_number = validated_data.get('room_number')
+    instance.course_name = validated_data.get('course_name')
+    instance.joining_permission = validated_data.get('joining_permission')
+    instance.save()
+    return instance
 
-class QueuedCoursesSerializer(serializers.Serializer):
-    course_name         = serializers.SerializerMethodField()
-    
-    def get_course_name(self, obj):
-        return obj.classroom_id.course_name
+class JoinRequestSerializer(serializers.ModelSerializer):
+  student_names = serializers.SerializerMethodField()
+
+  class Meta:
+    model = JoinRequests
+    fields = ('id', 'classroom_id', 'student_id')
+
+  def validate_classroom_id(self, value):
+    if not value:
+      raise serializers.ValidationError(_('Please enter classroom id'))
+    return value
+
+  def create(self, validated_data):
+    instance = JoinRequests(
+      classroom_id=validated_data.get('classroom_id'),
+      student_id=validated_data.get('student_id')
+    )
+    instance.save()
+
+    return instance
+
+class ClassroomStudentsSerializer(serializers.ModelSerializer):
+  student = serializers.SerializerMethodField()
+  class Meta:
+    model = ClassroomStudents
+    fields = ('student', )
+  
+  def get_student(self, obj):
+    student = UserSerializer(obj.student_id).data
+    return student
+
+class AssignmentSerializer(serializers.ModelSerializer):
+  class Meta:
+    model = Assignment
+    fields = (
+      'id',
+      'description',
+      'file',
+      'max_marks'
+    )
+
+  def create(self, validated_data):
+    assignment = Assignment(
+      classroom_id=validated_data.get('classroom_id'),
+      description=validated_data.get('description'),
+      file=validated_data.get('file'),
+      max_marks=validated_data.get('max_marks'),
+      teacher_id=validated_data.get('teacher')
+    )
+    assignment.save()
+    return assignment
+
+  def update(self, instance, validated_data):
+      instance.description = validated_data.get('description'),
+      instance.file = validated_data.get('file'),
+      instance.max_marks = validated_data.get('marks')
+      instance.save()
+      return instance
+
+class ReferenceMaterialSerializer(serializers.ModelSerializer):
+  class Meta:
+    model = ReferenceMaterial
+    fields = (
+      'id',
+      'description',
+      'file',
+    )
+
+  def create(self, validated_data):
+    instance = ReferenceMaterial(
+      classroom_id=validated_data.get('classroom_id'),
+      description=validated_data.get('description'),
+      file=validated_data.get('file'),
+      teacher_id=validated_data.get('teacher')
+    )
+    instance.save()
+    return instance
+
+  def update(self, instance, validated_data):
+    instance.description = validated_data.get('description')
+    instance.file = validated_data.get('file')
+    instance.save()
+    return instance

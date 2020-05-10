@@ -51,7 +51,7 @@ class Classroom(models.Model):
     return self.pending_requests.all()
 
 class ClassroomStudents(models.Model):
-  classroom_id  = models.ForeignKey(Classroom, related_name="classroom_students", on_delete=models.CASCADE)
+  classroom_id  = models.ForeignKey(Classroom, related_name="students", on_delete=models.CASCADE)
   student_id    = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="joined_classrooms", on_delete=models.CASCADE)
 
   class Meta:
@@ -59,7 +59,7 @@ class ClassroomStudents(models.Model):
 
 class JoinRequests(models.Model):
   classroom_id  = models.ForeignKey(Classroom, related_name='pending_requests', on_delete=models.CASCADE)
-  student_id    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+  student_id    = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='join_requests',on_delete=models.CASCADE)
 
   class Meta:
     unique_together = (('classroom_id', 'student_id'), )

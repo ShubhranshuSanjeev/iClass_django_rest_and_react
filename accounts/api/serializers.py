@@ -9,7 +9,6 @@ User = auth.get_user_model()
 
 class RegisterUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    password2 = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
@@ -17,7 +16,7 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             'username', 'email',
             'first_name', 'last_name',
             'is_student', 'is_teacher',
-            'password', 'password2',
+            'password'
         )
 
     def validate_username(self, value):
@@ -36,23 +35,23 @@ class RegisterUserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_('User with this username already exists'))
         return value
 
-    def validate(self, data):
-        pw = data.get('password', None)
-        pw2 = data.get('password2', None)
-        student = data.get('is_student', False)
-        teacher = data.get('is_teacher', False)
+    # def validate(self, data):
+    #     pw = data.get('password', None)
+    #     pw2 = data.get('password2', None)
+    #     student = data.get('is_student', False)
+    #     teacher = data.get('is_teacher', False)
 
-        ''' Checking for equality of both the passwords. '''
-        if pw != pw2:
-            raise serializers.ValidationError(_('Both password and password should match'))
+    #     ''' Checking for equality of both the passwords. '''
+    #     if pw != pw2:
+    #         raise serializers.ValidationError(_('Both password and password should match'))
 
-        ''' At least one of the two either student or teacher should be true. '''
-        if not (student or teacher):
-            raise serializers.ValidationError(_('Choose one of the roles'))
-        if student and teacher:
-            raise serializers.ValidationError(_('You can choose only one of the roles.'))
+    #     ''' At least one of the two either student or teacher should be true. '''
+    #     if not (student or teacher):
+    #         raise serializers.ValidationError(_('Choose one of the roles'))
+    #     if student and teacher:
+    #         raise serializers.ValidationError(_('You can choose only one of the roles.'))
 
-        return data
+    #     return data
 
     def create(self, validated_data):
         """ Creating and saving a new user instance. """
@@ -90,8 +89,8 @@ class LoginUserSerializer(serializers.Serializer):
 
         if email and password:
             '''
-      Checking whether the credentials provided are correct or not
-      '''
+            Checking whether the credentials provided are correct or not
+            '''
             user = authenticate(
                 request=self.context.get('request'),
                 email=email,

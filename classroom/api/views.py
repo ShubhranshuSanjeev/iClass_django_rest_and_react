@@ -57,7 +57,7 @@ class ClassCreateListAPIView(generics.GenericAPIView):
   def get(self, request, *args, **kwargs):
     user = request.user
     data = user.get_classrooms()
-
+    data = [data[i].classroom_id for i in range(len(data)) ]
     class_list = ClassroomSerializer(data, many=True)
     return Response({
       'classrooms': class_list.data
@@ -81,13 +81,15 @@ class ClassCreateListAPIView(generics.GenericAPIView):
 class JoinClassAPIView(generics.GenericAPIView):
   permission_classes = [permissions.IsAuthenticated]
 
-  def get_object(self):
-    return Classroom.objects.get(id__iexact=self.request.data.get('classroom_id'))
-
   def post(self, request, *args, **kwargs):
-    classroom = self.get_object()
+    try:
+      classroom = Classroom.objects.get(id__iexact=self.request.data.get('classroom_id'))
+    except:
+      return Response({
+        'message': _('Enter valid Clasroom Id')
+      },status=status.HTTP_404_NOT_FOUND)
+  
     user = request.user
-
     if user.is_teacher:
       return unauthorizedRequest()
 
@@ -103,19 +105,16 @@ class JoinClassAPIView(generics.GenericAPIView):
             Wait for the course admin to accept the request')
         }, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = JoinRequestSerializer(data={
-          'classroom_id': classroom,
-          'student_id': user
-        })
-        serializer.is_valid(raise_exception=True)
-        serializer.create(validated_data=serializer.validated_data)
-        return Response({
-            'message': _('Your join request has been queued. Wait till the course admin accepts the request.')
-        }, status=status.HTTP_202_ACCEPTED)
+      instance = JoinRequests(classroom_id=classroom, student_id=user)
+      instance.save()
+
+      return Response({
+          'message': _('Your join request has been queued. Wait till the course admin accepts the request.')
+      }, status=status.HTTP_202_ACCEPTED)
 
     instance = ClassroomStudents( classroom_id = classroom, student_id = user )
     instance.save()
-
+    print("3. Here")
     return Response({
       'message': _('You have been successfully enrolled to the classroom.')
     }, status.HTTP_202_ACCEPTED)
@@ -171,7 +170,7 @@ class JoinRequestsListAPIView(generics.GenericAPIView):
     }, status=status.HTTP_200_OK)
 
 
-class AcceptJoinRequestAPIView(generics.GenericAPIView):
+class JoinRequestAcceptRejectAPIView(generics.GenericAPIView):
   permission_classes = [permissions.IsAuthenticated,]
 
   def get_object(self):
@@ -191,13 +190,45 @@ class AcceptJoinRequestAPIView(generics.GenericAPIView):
     join_request.delete()
 
     return Response({}, status=status.HTTP_202_ACCEPTED)
+  
+  def delete(self, request, *args, **kwargs):
+    join_request = self.get_object()
+    classroom = join_request.classroom_id
+    student = join_request.student_id
+    user = request.user 
+
+    if user.is_student or not hasClassroomPermission(user, classroom):
+      return unauthorizedRequest()
+    
+    join_request.delete()
+
+    return Response({}, status=status.HTTP_200_OK)
+
+class ClassroomStudentsListAPIView(generics.GenericAPIView):
+  permission_classes = (permissions.IsAuthenticated, )
+
+  def get_object(self):
+    return Classroom.objects.get(id__iexact=self.kwargs.get('pk'))
+
+  def get(self, request, *args, **kwargs):
+    classroom = self.get_object()
+    user = request.user
+
+    if not hasClassroomPermission(user, classroom):
+      return unauthorizedRequest()
+    
+    queryset = classroom.students.all()
+    students = UserSerializer(queryset, many=True).data
+    return Response({
+      'students' : students
+    }, status=status.HTTP_200_OK)
 
 class AssignmentCreateListAPIView(generics.GenericAPIView):
   permission_classes = (permissions.IsAuthenticated,)
   parser_class = (FileUploadParser,)
 
   def get_object(self):
-    return Classroom.objects.get(id__iexact = self.kwargs.get('pk'))
+    return Classroom.objects.get(id__iexact = self.kwargs.get('classroom'))
 
   def get(self, request, *args, **kwargs):
     classroom = self.get_object()
@@ -266,13 +297,17 @@ class DownloadAssignmentFileView(APIView):
     permission_class = (permissions.IsAuthenticated, )
 
     def get(self, request, *args, **kwargs):
-      path = Assignment.objects.get(id=kwargs['id'])
+      path = str(Assignment.objects.get(id=kwargs['pk']).file)
       file_path = os.path.join(settings.MEDIA_ROOT, path)
+      print(file_path)
       if os.path.exists(file_path):
-          with open(file_path, 'rb') as fh:
-              response = HttpResponse(fh.read(), content_type="application/vnd.ms-excel")
-              response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
-              return response
+          return Response({
+            'file': file_path
+          }, status=status.HTTP_200_OK)
+          # with open(file_path, 'rb') as fh:
+          #     response = HttpResponse(fh.read(), content_type="application/vnd.ms-excel")
+          #     response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
+          #     return response
       return Response({
           'message': _('File not found')
       }, status=status.HTTP_404_NOT_FOUND)

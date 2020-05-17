@@ -1,5 +1,7 @@
 import uuid
+# import os
 from rest_framework import serializers
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.contrib import auth
 
@@ -60,7 +62,6 @@ class ClassroomSerializer(serializers.ModelSerializer):
     return instance
 
 class JoinRequestSerializer(serializers.ModelSerializer):
-  student_names = serializers.SerializerMethodField()
 
   class Meta:
     model = JoinRequests
@@ -72,6 +73,7 @@ class JoinRequestSerializer(serializers.ModelSerializer):
     return value
 
   def create(self, validated_data):
+    print("Yaha pe aagaye")
     instance = JoinRequests(
       classroom_id=validated_data.get('classroom_id'),
       student_id=validated_data.get('student_id')
@@ -96,8 +98,9 @@ class AssignmentSerializer(serializers.ModelSerializer):
     fields = (
       'id',
       'description',
+      'max_marks',
+      'deadline',
       'file',
-      'max_marks'
     )
 
   def create(self, validated_data):
@@ -106,7 +109,8 @@ class AssignmentSerializer(serializers.ModelSerializer):
       description=validated_data.get('description'),
       file=validated_data.get('file'),
       max_marks=validated_data.get('max_marks'),
-      teacher_id=validated_data.get('teacher')
+      deadline=validated_data.get('deadline'), 
+      teacher=validated_data.get('teacher')
     )
     assignment.save()
     return assignment

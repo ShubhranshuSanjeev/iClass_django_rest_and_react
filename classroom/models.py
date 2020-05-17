@@ -4,17 +4,17 @@ from django.utils.translation import ugettext_lazy as _
 
 def upload_assignment_file(instance, filename):
 	return "assignments/{classroom}/{filename}".format(
-            classroom=str(instance.classroom_id.classroom_id),
+            classroom=str(instance.classroom_id.id),
             filename="Assignment"+str(instance.id)
         )
 def upload_notes_file(instance, filename):
 	return "notes/{classroom}/{filename}".format(
-            classroom=str(instance.classroom_id.classroom_id),
+            classroom=str(instance.classroom_id.id),
             filename="ReferenceMaterial"+str(instance.id)
         )
 def upload_submission_file(instance, filename):
     return "submissions/{classroom}/{filename}".format(
-        classroom=str(instance.classroom_id.classroom_id),
+        classroom=str(instance.classroom_id.id),
         filename="Submission"+str(instance.id)
     )
 
@@ -69,6 +69,7 @@ class Assignment(models.Model):
   teacher       = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="owns_assignment", on_delete=models.CASCADE)
   description   = models.CharField(_("description"), max_length=75, blank=False)
   file          = models.FileField(upload_to=upload_assignment_file, blank=False)
+  deadline      = models.DateField(_("deadline"), blank=True)
   max_marks     = models.IntegerField(default=100)
 
   def get_submissions(self):

@@ -52,7 +52,7 @@ class UserRetrieveUpdateAPIView(generics.GenericAPIView):
 
         if not user.check_password(request.data.get('password')):
             return Response({
-                'message': 'Wrong Password cannot update user profile',
+                'error': 'Password doesn\'t match. Provide correct password.',
             }, status=status.HTTP_401_UNAUTHORIZED)
 
         serializer = UserUpdateSerializer(user, data=request.data)

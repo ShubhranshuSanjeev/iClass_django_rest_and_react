@@ -3,18 +3,19 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
 def upload_assignment_file(instance, filename):
-	return "assignments/{classroom}/{filename}".format(
-            classroom=str(instance.classroom_id.id),
-            filename="Assignment"+str(instance.id)
-        )
+  print(instance.id)
+  return "assignments/{classroom}/{filename}".format(
+    classroom=str(instance.classroom_id.id),
+    filename="Assignment"+str(instance.id)
+  )
 def upload_notes_file(instance, filename):
 	return "notes/{classroom}/{filename}".format(
             classroom=str(instance.classroom_id.id),
             filename="ReferenceMaterial"+str(instance.id)
         )
-def upload_submission_file(instance, filename):
+def upload_submission_file(instance, filename):  
     return "submissions/{classroom}/{filename}".format(
-        classroom=str(instance.classroom_id.id),
+        classroom=str(instance.assignment_id.classroom_id.id),
         filename="Submission"+str(instance.id)
     )
 
@@ -65,12 +66,13 @@ class JoinRequests(models.Model):
     unique_together = (('classroom_id', 'student_id'), )
 
 class Assignment(models.Model):
-  classroom_id  = models.ForeignKey(Classroom, related_name="assignments", on_delete=models.CASCADE)
-  teacher       = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="owns_assignment", on_delete=models.CASCADE)
-  description   = models.CharField(_("description"), max_length=75, blank=False)
-  file          = models.FileField(upload_to=upload_assignment_file, blank=False)
-  deadline      = models.DateField(_("deadline"), blank=True)
-  max_marks     = models.IntegerField(default=100)
+  classroom_id    = models.ForeignKey(Classroom, related_name="assignments", on_delete=models.CASCADE)
+  teacher         = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="owns_assignment", on_delete=models.CASCADE)
+  description     = models.CharField(_("description"), max_length=75, blank=False)
+  file            = models.FileField(upload_to=upload_assignment_file, blank=False)
+  deadline        = models.DateField(_("deadline"), blank=True)
+  max_marks       = models.IntegerField(default=100)
+  publish_grades  = models.BooleanField(verbose_name=_('publish'),default=False)
 
   def get_submissions(self):
     return self.assignment_submissions.all()
@@ -85,7 +87,7 @@ class AssignmentSubmission(models.Model):
   assignment_id   = models.ForeignKey(Assignment, related_name="assignment_submissions", on_delete=models.CASCADE)
   student_id      = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="owns_solution", on_delete=models.CASCADE)
   file            = models.FileField(upload_to=upload_submission_file, blank=False)
-  marks           = models.PositiveIntegerField()
+  marks           = models.PositiveIntegerField(default=0)
 
   class Meta:
     unique_together = (('assignment_id', 'student_id'),)

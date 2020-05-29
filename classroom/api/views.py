@@ -20,12 +20,7 @@ from classroom.models import (
   ReferenceMaterial,
   AssignmentSubmission
 )
-from .serializers import (
-  ClassroomSerializer,
-  JoinRequestSerializer,
-  AssignmentSerializer,
-  ReferenceMaterial
-)
+from .serializers import *
 
 '''
 ClassCreateAPIView takes POST request with Course Name and
@@ -41,7 +36,10 @@ def hasClassroomPermission(user, classroom):
   return classroom.teacher_id.id == user.id
 
 def hasCreatedAssignment(user, assignment):
-  return user.id == assignment.teacher_id.id
+  return user.id == assignment.teacher.id
+
+def hasCreatedReferenceMaterial(user, reference_material):
+  return user.id == reference_material.teacher_id.id
 
 def hasSubmittedSolution(user, submission):
   return user.id == submission.student_id.id
@@ -57,7 +55,7 @@ class ClassCreateListAPIView(generics.GenericAPIView):
   def get(self, request, *args, **kwargs):
     user = request.user
     data = user.get_classrooms()
-    data = [data[i].classroom_id for i in range(len(data)) ]
+    # data = [item for item in data]
     class_list = ClassroomSerializer(data, many=True)
     return Response({
       'classrooms': class_list.data
@@ -74,7 +72,7 @@ class ClassCreateListAPIView(generics.GenericAPIView):
     class_instance = serializer.create(serializer.validated_data)
 
     return Response({
-      'message': _('Classroom created'),
+      'message': _('Classroom was successfully created'),
       'class': ClassroomSerializer(class_instance, context=self.get_serializer_context()).data,
     }, status=status.HTTP_201_CREATED)
 
@@ -114,12 +112,11 @@ class JoinClassAPIView(generics.GenericAPIView):
 
     instance = ClassroomStudents( classroom_id = classroom, student_id = user )
     instance.save()
-    print("3. Here")
     return Response({
       'message': _('You have been successfully enrolled to the classroom.')
     }, status.HTTP_202_ACCEPTED)
 
-class ClassRetriveUpdateAPIView(generics.GenericAPIView):
+class ClassRetriveUpdateDeleteAPIView(generics.GenericAPIView):
   permissions = [permissions.IsAuthenticated]
 
   def get_object(self):
@@ -148,8 +145,19 @@ class ClassRetriveUpdateAPIView(generics.GenericAPIView):
     instance = serializer.update(classroom, serializer.validated_data)
 
     return Response({
+      'message': _('Classroom details successfully updated'),
       'class_details': ClassroomSerializer(instance).data
     }, status=status.HTTP_200_OK)
+  
+  def delete(self, request, *args, **kwargs):
+    classroom = self.get_object()
+    user = request.user
+    if user.is_student or not hasClassroomPermission(user, classroom):
+      return unauthorizedRequest()
+    classroom.delete()
+    return Response({
+      'message' : 'Classroom successfully deleted.',
+    },status=status.HTTP_200_OK)
 
 class JoinRequestsListAPIView(generics.GenericAPIView):
   permission_classes = [permissions.IsAuthenticated]
@@ -208,7 +216,7 @@ class ClassroomStudentsListAPIView(generics.GenericAPIView):
   permission_classes = (permissions.IsAuthenticated, )
 
   def get_object(self):
-    return Classroom.objects.get(id__iexact=self.kwargs.get('pk'))
+    return Classroom.objects.get(id__iexact=self.kwargs.get('classroom'))
 
   def get(self, request, *args, **kwargs):
     classroom = self.get_object()
@@ -218,9 +226,26 @@ class ClassroomStudentsListAPIView(generics.GenericAPIView):
       return unauthorizedRequest()
     
     queryset = classroom.students.all()
-    students = UserSerializer(queryset, many=True).data
+    # queryset = [ entry.student_id for entry in queryset ]
+    students = ClassroomStudentsSerializer(queryset, many=True).data
     return Response({
       'students' : students
+    }, status=status.HTTP_200_OK)
+
+class ClassroomStudentsRemoveAPIView(generics.GenericAPIView):
+  permission_classes = (permissions.IsAuthenticated, )
+
+  def delete(self, request, *args, **kwargs):
+    user = request.user
+    classroom = Classroom.objects.get(id__iexact=kwargs.get('classroom'))
+    if user.is_student or not hasClassroomPermission(user, classroom):
+      return unauthorizedRequest()
+    
+    instance = ClassroomStudents.objects.get(id__exact=kwargs.get('pk'))
+    instance.delete()
+
+    return Response({
+      'message' : 'Student has been removed.'
     }, status=status.HTTP_200_OK)
 
 class AssignmentCreateListAPIView(generics.GenericAPIView):
@@ -237,6 +262,7 @@ class AssignmentCreateListAPIView(generics.GenericAPIView):
       return unauthorizedRequest()
     queryset = classroom.assignments
     serializer = AssignmentSerializer(queryset, many=True)
+    print(serializer.data)
     return Response({
       'assignments' : serializer.data
     }, status=status.HTTP_200_OK)
@@ -259,7 +285,7 @@ class AssignmentCreateListAPIView(generics.GenericAPIView):
       'assignment': AssignmentSerializer(assignment).data
     }, status=status.HTTP_201_CREATED)
 
-class AssignmentRetriveUpdateAPIView(generics.GenericAPIView):
+class AssignmentRetriveUpdateDeleteAPIView(generics.GenericAPIView):
   permission_classes = [permissions.IsAuthenticated, ]
 
   def get_object(self):
@@ -279,19 +305,38 @@ class AssignmentRetriveUpdateAPIView(generics.GenericAPIView):
 
   def patch(self, request, *args, **kwargs):
     assignment = self.get_object()
-    classroom = assignment.classroom_id
     user = request.user
 
     if user.is_student or not hasCreatedAssignment(user, assignment):
       return unauthorizedRequest()
 
-    serializer = AssignmentSerializer(data=request.data)
+    data = {key:value for key,value in request.data.items()}
+    data['publish_grades'] = True if data['publish_grades'] == 'true' else False
+    data['file_updated'] = True if data['file_updated'] == 'true' else False
+    data['max_marks'] = int(data['max_marks'])
+    serializer = AssignmentUpdateSerializer(data=data)
     serializer.is_valid(raise_exception=True)
-    instance = serializer.update(assignment_instance,serializer.validated_data)
+    instance = serializer.update(assignment, serializer.validated_data)
 
+    if data.get('file_updated'):
+      file_serializer = AssignmentFileSerializer(data=data)
+      file_serializer.is_valid(raise_exception=True)
+      instance = file_serializer.update(instance, file_serializer.validated_data)
+    
     return Response({
+      'message': _('Assignment has been successfully updated.'),
       'assignment': AssignmentSerializer(instance).data
     },status=status.HTTP_200_OK)
+  
+  def delete(self, request, *args, **kwargs):
+    assignment = self.get_object()
+    user = request.user
+    if user.is_student or not hasCreatedAssignment(user, assignment):
+      return unauthorizedRequest()
+    assignment.delete()
+    return Response({
+      'message' : _('Assignment successfully deleted'),
+    }, status=status.HTTP_200_OK)
 
 class DownloadAssignmentFileView(APIView):
     permission_class = (permissions.IsAuthenticated, )
@@ -316,7 +361,7 @@ class ReferenceMaterialCreateListAPIView(generics.GenericAPIView):
   permission_classes = (permissions.IsAuthenticated, )
 
   def get_object(self):
-    return Classroom.objects.get(id__iexact=self.kwargs.get('classroom_id'))
+    return Classroom.objects.get(id__iexact=self.kwargs.get('classroom'))
 
   def get(self, request, *args, **kwargs):
     classroom = self.get_object()
@@ -346,7 +391,7 @@ class ReferenceMaterialCreateListAPIView(generics.GenericAPIView):
 
     return Response({
       'message':_('Reference Material has been successfully added.'),
-      'assignment': ReferenceMaterialSerializer(reference_material).data
+      'reference_material': ReferenceMaterialSerializer(reference_material).data
     }, status=status.HTTP_201_CREATED)
 
 class ReferenceMaterialRetriveUpdateAPIView(generics.GenericAPIView):
@@ -372,7 +417,7 @@ class ReferenceMaterialRetriveUpdateAPIView(generics.GenericAPIView):
     classroom = reference_material.classroom_id
     user = request.user
 
-    if user.is_student or not hasCreatedAssignment(user, assignment):
+    if user.is_student or not hasCreatedReferenceMaterial(user, reference_material) or not hasClassroomPermission(user, classroom):
       return unauthorizedRequest()
 
     serializer = ReferenceMaterialSerializer(data=request.data)
@@ -398,9 +443,74 @@ class DownloadReferenceMaterialFileView(APIView):
         'message': _('File not found')
     }, status=status.HTTP_404_NOT_FOUND)
 
-
-    
-
-
-
 # ## Assignmnet submission view
+
+class AssignmentSubmissionCreateListAPIView(generics.GenericAPIView):
+  permission_classes = (permissions.IsAuthenticated, )
+
+  def get(self, request, *args, **kwargs):
+    user = request.user
+
+    try:
+      classroom  = Classroom.objects.get(id__exact=kwargs.get('classroom'))
+      assignment = Assignment.objects.get(id__exact=kwargs.get('assignment'))
+    except:
+      return Response({
+        'error' : _('No such assignment exists')
+      }, status=status.HTTP_404_NOT_FOUND)
+    
+    if user.is_student or not hasClassroomPermission(user, classroom):
+      return Response({
+        'error': _('Not authorized to do this action')
+      })
+    
+    queryset = assignment.assignment_submissions.all()
+    print(queryset)
+    serializer = AssignmentSubmissionDetailListSerializer(queryset, many=True)
+    return Response({
+      'submissions' : serializer.data
+    })
+
+  def post(self, request, *args, **kwargs):
+    user = request.user
+    try:
+      classroom  = Classroom.objects.get(id__exact=kwargs.get('classroom'))
+      assignment = Assignment.objects.get(id__exact=kwargs.get('assignment'))
+    except:
+      return Response({
+        'error' : _('No such assignment exists')
+      }, status=status.HTTP_404_NOT_FOUND)
+    
+    if user.is_teacher or not hasClassroomPermission(user, classroom):
+      return Response({
+        'error': _('Not authorized to do this action')
+      })
+  
+    try:
+      instance = AssignmentSubmission.objects.get(Q(student_id=user) & Q(assignment_id=assignment))
+      serializer = AssignmentSubmissionStudentUpdateSerializer(data=request.data)
+      serializer.is_valid(raise_exception=True)
+      instance = serializer.update(instance, serializer.validated_data)
+    except:
+      serializer = AssignmentSubmissionCreateSerializer(data=request.data)
+      serializer.is_valid(raise_exception=True)
+      serializer.validated_data['student_id']=user
+      serializer.validated_data['assignment_id']=assignment
+      instance = serializer.create(serializer.validated_data)
+
+    return Response({
+      'message': 'Your file has been submitted'
+    },status=status.HTTP_202_ACCEPTED)
+
+class AssignmentSubmissionUpdateAPIView(generics.GenericAPIView):
+  permission_classes = (permissions.IsAuthenticated, )
+
+  def patch(self, request, *args, **kwargs):
+    instance = AssignmentSubmission.objects.get(id__iexact=kwargs.get('pk'))
+    serializer = AssignmentSubmissionTeacherUpdateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    instance = serializer.update(instance, serializer.validated_data)
+    return Response({
+      'message' : 'Marks updated successfully.',
+      'submission' : AssignmentSubmissionDetailListSerializer(instance).data
+    },status=status.HTTP_200_OK)

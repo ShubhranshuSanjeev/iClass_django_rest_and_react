@@ -62,10 +62,14 @@ class ClassroomSerializer(serializers.ModelSerializer):
     return instance
 
 class JoinRequestSerializer(serializers.ModelSerializer):
+  student_name = serializers.SerializerMethodField()
 
   class Meta:
     model = JoinRequests
-    fields = ('id', 'classroom_id', 'student_id')
+    fields = ('id', 'classroom_id', 'student_id', 'student_name')
+
+  def get_student_name(self, obj):
+    return obj.student_id.get_fullname()
 
   def validate_classroom_id(self, value):
     if not value:
@@ -86,7 +90,7 @@ class ClassroomStudentsSerializer(serializers.ModelSerializer):
   student = serializers.SerializerMethodField()
   class Meta:
     model = ClassroomStudents
-    fields = ('student', )
+    fields = ('id', 'student', )
   
   def get_student(self, obj):
     student = UserSerializer(obj.student_id).data
@@ -95,13 +99,7 @@ class ClassroomStudentsSerializer(serializers.ModelSerializer):
 class AssignmentSerializer(serializers.ModelSerializer):
   class Meta:
     model = Assignment
-    fields = (
-      'id',
-      'description',
-      'max_marks',
-      'deadline',
-      'file',
-    )
+    exclude = ('classroom_id', 'teacher', )
 
   def create(self, validated_data):
     assignment = Assignment(
@@ -110,17 +108,36 @@ class AssignmentSerializer(serializers.ModelSerializer):
       file=validated_data.get('file'),
       max_marks=validated_data.get('max_marks'),
       deadline=validated_data.get('deadline'), 
-      teacher=validated_data.get('teacher')
+      teacher=validated_data.get('teacher'),
+      publish_grades=validated_data.get('publish_grades')
     )
     assignment.save()
     return assignment
 
+class AssignmentUpdateSerializer(serializers.ModelSerializer):
+  class Meta:
+    model = Assignment
+    exclude = ('file', 'classroom_id', 'teacher', ) 
+
   def update(self, instance, validated_data):
-      instance.description = validated_data.get('description'),
-      instance.file = validated_data.get('file'),
-      instance.max_marks = validated_data.get('marks')
-      instance.save()
-      return instance
+    print('reached')
+    instance.description = validated_data.get('description')
+    instance.max_marks = validated_data.get('max_marks')
+    instance.publish_grades = validated_data.get('publish_grades')
+    instance.deadline = validated_data.get('deadline')
+    instance.save()
+    return instance
+
+class AssignmentFileSerializer(serializers.ModelSerializer):
+  class Meta:
+    model = Assignment
+    fields = ('file', )
+  
+  def update(self, instance, validated_data):
+    print(validated_data)
+    instance.file = validated_data.get('file')
+    instance.save()
+    return instance
 
 class ReferenceMaterialSerializer(serializers.ModelSerializer):
   class Meta:
@@ -146,3 +163,63 @@ class ReferenceMaterialSerializer(serializers.ModelSerializer):
     instance.file = validated_data.get('file')
     instance.save()
     return instance
+
+class AssignmentSubmissionCreateSerializer(serializers.ModelSerializer):
+  class Meta:
+    model = AssignmentSubmission
+    exclude = ('assignment_id', 'student_id', )
+
+  def create(self, validated_data):
+    instance = AssignmentSubmission(
+                assignment_id=validated_data.get('assignment_id'),
+                student_id = validated_data.get('student_id'),
+                file=validated_data.get('file'),
+              )
+    instance.save()
+    return instance
+
+class AssignmentSubmissionDetailListSerializer(serializers.ModelSerializer):
+  student_name = serializers.SerializerMethodField()
+  class Meta:
+    model = AssignmentSubmission
+    fields = ('id', 'student_name', 'assignment_id', 'student_id', 'file', 'marks', )
+  
+  def get_student_name(self, obj):
+    return obj.student_id.get_fullname()
+
+class AssignmentSubmissionStudentUpdateSerializer(serializers.ModelSerializer):
+  class Meta:
+    model = AssignmentSubmission
+    fields = ('file', )
+
+  def update(self, instance, validated_data):
+    instance.file = validated_data.get('file')
+    instance.save()
+    return instance
+
+class AssignmentSubmissionTeacherUpdateSerializer(serializers.ModelSerializer):
+  class Meta:
+    model = AssignmentSubmission
+    fields = ('marks', )
+  
+  def update(self, instance, validated_data):
+    instance.marks = validated_data.get('marks')
+    instance.save()
+    return instance
+
+# class AssignmentGradesSerializer(serializers.ModelSerializer):
+#   class Meta:
+#     model = AssignmentGrades
+#     fields = '__all__'
+  
+#   def create(self, validated_data):
+#     instance = AssignmentGrades( 
+#                 submission_id=validated_data.get('submission_id'), 
+#                 marks=validated_data.get('marks')
+#               )
+#     return instance
+
+#   def update(self, instance, validated_data):
+#     instance.marks = validated_data.get('marks')
+#     instance.save()
+#     return instance

@@ -55,8 +55,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
   def __str__(self):
     return self.username
-  
+
+  def get_fullname(self):
+    return (self.first_name + ' ' + self.last_name).strip()
+
   def get_classrooms(self):
     if self.is_student:
-      return self.joined_classrooms.all()
+      return [classroom.classroom_id for classroom in self.joined_classrooms.all()]
     return self.teaching_classrooms.all()

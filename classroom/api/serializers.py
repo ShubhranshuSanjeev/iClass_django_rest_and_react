@@ -1,5 +1,4 @@
 import uuid
-# import os
 from rest_framework import serializers
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
@@ -28,7 +27,7 @@ class ClassroomSerializer(serializers.ModelSerializer):
     )
 
   def get_teacher(self, obj):
-    teacher = obj.teacher_id 
+    teacher = obj.teacher_id
     teacher = UserSerializer(teacher).data
     return teacher
 
@@ -91,7 +90,7 @@ class ClassroomStudentsSerializer(serializers.ModelSerializer):
   class Meta:
     model = ClassroomStudents
     fields = ('id', 'student', )
-  
+
   def get_student(self, obj):
     student = UserSerializer(obj.student_id).data
     return student
@@ -107,7 +106,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
       description=validated_data.get('description'),
       file=validated_data.get('file'),
       max_marks=validated_data.get('max_marks'),
-      deadline=validated_data.get('deadline'), 
+      deadline=validated_data.get('deadline'),
       teacher=validated_data.get('teacher'),
       publish_grades=validated_data.get('publish_grades')
     )
@@ -117,7 +116,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
 class AssignmentUpdateSerializer(serializers.ModelSerializer):
   class Meta:
     model = Assignment
-    exclude = ('file', 'classroom_id', 'teacher', ) 
+    exclude = ('file', 'classroom_id', 'teacher', )
 
   def update(self, instance, validated_data):
     print('reached')
@@ -132,7 +131,7 @@ class AssignmentFileSerializer(serializers.ModelSerializer):
   class Meta:
     model = Assignment
     fields = ('file', )
-  
+
   def update(self, instance, validated_data):
     print(validated_data)
     instance.file = validated_data.get('file')
@@ -183,7 +182,7 @@ class AssignmentSubmissionDetailListSerializer(serializers.ModelSerializer):
   class Meta:
     model = AssignmentSubmission
     fields = ('id', 'student_name', 'assignment_id', 'student_id', 'file', 'marks', )
-  
+
   def get_student_name(self, obj):
     return obj.student_id.get_fullname()
 
@@ -201,7 +200,7 @@ class AssignmentSubmissionTeacherUpdateSerializer(serializers.ModelSerializer):
   class Meta:
     model = AssignmentSubmission
     fields = ('marks', )
-  
+
   def update(self, instance, validated_data):
     instance.marks = validated_data.get('marks')
     instance.save()
@@ -211,10 +210,10 @@ class AssignmentSubmissionTeacherUpdateSerializer(serializers.ModelSerializer):
 #   class Meta:
 #     model = AssignmentGrades
 #     fields = '__all__'
-  
+
 #   def create(self, validated_data):
-#     instance = AssignmentGrades( 
-#                 submission_id=validated_data.get('submission_id'), 
+#     instance = AssignmentGrades(
+#                 submission_id=validated_data.get('submission_id'),
 #                 marks=validated_data.get('marks')
 #               )
 #     return instance

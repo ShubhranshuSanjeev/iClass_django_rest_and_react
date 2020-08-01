@@ -22,14 +22,6 @@ from classroom.models import (
 )
 from .serializers import *
 
-'''
-ClassCreateAPIView takes POST request with Course Name and
-Room Number values in the body. On successfull creation of new class 
-it returns classroom id and success message.
-
-This endpoint can only be accessed by a teacher(user having role set as teacher)
-'''
-
 def hasClassroomPermission(user, classroom):
   if user.is_student:
     return classroom.students.filter(student_id=user).exists()
@@ -55,7 +47,6 @@ class ClassCreateListAPIView(generics.GenericAPIView):
   def get(self, request, *args, **kwargs):
     user = request.user
     data = user.get_classrooms()
-    # data = [item for item in data]
     class_list = ClassroomSerializer(data, many=True)
     return Response({
       'classrooms': class_list.data
@@ -86,7 +77,7 @@ class JoinClassAPIView(generics.GenericAPIView):
       return Response({
         'message': _('Enter valid Clasroom Id')
       },status=status.HTTP_404_NOT_FOUND)
-  
+
     user = request.user
     if user.is_teacher:
       return unauthorizedRequest()
@@ -148,7 +139,7 @@ class ClassRetriveUpdateDeleteAPIView(generics.GenericAPIView):
       'message': _('Classroom details successfully updated'),
       'class_details': ClassroomSerializer(instance).data
     }, status=status.HTTP_200_OK)
-  
+
   def delete(self, request, *args, **kwargs):
     classroom = self.get_object()
     user = request.user
@@ -188,7 +179,7 @@ class JoinRequestAcceptRejectAPIView(generics.GenericAPIView):
     join_request = self.get_object()
     classroom = join_request.classroom_id
     student = join_request.student_id
-    user = request.user 
+    user = request.user
 
     if user.is_student or not hasClassroomPermission(user, classroom):
       return unauthorizedRequest()
@@ -198,16 +189,16 @@ class JoinRequestAcceptRejectAPIView(generics.GenericAPIView):
     join_request.delete()
 
     return Response({}, status=status.HTTP_202_ACCEPTED)
-  
+
   def delete(self, request, *args, **kwargs):
     join_request = self.get_object()
     classroom = join_request.classroom_id
     student = join_request.student_id
-    user = request.user 
+    user = request.user
 
     if user.is_student or not hasClassroomPermission(user, classroom):
       return unauthorizedRequest()
-    
+
     join_request.delete()
 
     return Response({}, status=status.HTTP_200_OK)
@@ -224,9 +215,8 @@ class ClassroomStudentsListAPIView(generics.GenericAPIView):
 
     if not hasClassroomPermission(user, classroom):
       return unauthorizedRequest()
-    
+
     queryset = classroom.students.all()
-    # queryset = [ entry.student_id for entry in queryset ]
     students = ClassroomStudentsSerializer(queryset, many=True).data
     return Response({
       'students' : students
@@ -240,7 +230,7 @@ class ClassroomStudentsRemoveAPIView(generics.GenericAPIView):
     classroom = Classroom.objects.get(id__iexact=kwargs.get('classroom'))
     if user.is_student or not hasClassroomPermission(user, classroom):
       return unauthorizedRequest()
-    
+
     instance = ClassroomStudents.objects.get(id__exact=kwargs.get('pk'))
     instance.delete()
 
@@ -258,7 +248,7 @@ class AssignmentCreateListAPIView(generics.GenericAPIView):
   def get(self, request, *args, **kwargs):
     classroom = self.get_object()
     user = request.user
-    if not hasClassroomPermission(user, classroom): 
+    if not hasClassroomPermission(user, classroom):
       return unauthorizedRequest()
     queryset = classroom.assignments
     serializer = AssignmentSerializer(queryset, many=True)
@@ -322,12 +312,12 @@ class AssignmentRetriveUpdateDeleteAPIView(generics.GenericAPIView):
       file_serializer = AssignmentFileSerializer(data=data)
       file_serializer.is_valid(raise_exception=True)
       instance = file_serializer.update(instance, file_serializer.validated_data)
-    
+
     return Response({
       'message': _('Assignment has been successfully updated.'),
       'assignment': AssignmentSerializer(instance).data
     },status=status.HTTP_200_OK)
-  
+
   def delete(self, request, *args, **kwargs):
     assignment = self.get_object()
     user = request.user
@@ -337,25 +327,6 @@ class AssignmentRetriveUpdateDeleteAPIView(generics.GenericAPIView):
     return Response({
       'message' : _('Assignment successfully deleted'),
     }, status=status.HTTP_200_OK)
-
-class DownloadAssignmentFileView(APIView):
-    permission_class = (permissions.IsAuthenticated, )
-
-    def get(self, request, *args, **kwargs):
-      path = str(Assignment.objects.get(id=kwargs['pk']).file)
-      file_path = os.path.join(settings.MEDIA_ROOT, path)
-      print(file_path)
-      if os.path.exists(file_path):
-          return Response({
-            'file': file_path
-          }, status=status.HTTP_200_OK)
-          # with open(file_path, 'rb') as fh:
-          #     response = HttpResponse(fh.read(), content_type="application/vnd.ms-excel")
-          #     response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
-          #     return response
-      return Response({
-          'message': _('File not found')
-      }, status=status.HTTP_404_NOT_FOUND)
 
 class ReferenceMaterialCreateListAPIView(generics.GenericAPIView):
   permission_classes = (permissions.IsAuthenticated, )
@@ -375,14 +346,14 @@ class ReferenceMaterialCreateListAPIView(generics.GenericAPIView):
     return Response({
       'reference_materials' : serializer.data
     }, status=status.HTTP_200_OK)
-  
+
   def post(self, request, *args, **kwrags):
     classroom = self.get_object()
     user = request.user
 
     if user.is_student or not hasClassroomPermission(user, classroom):
       return unauthorizedRequest
-    
+
     serializer = ReferenceMaterialSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     serializer.validated_data['classroom_id'] = classroom
@@ -428,23 +399,6 @@ class ReferenceMaterialRetriveUpdateAPIView(generics.GenericAPIView):
       'assignment': ReferenceMaterialSerializer(instance).data
     },status=status.HTTP_200_OK)
 
-class DownloadReferenceMaterialFileView(APIView):
-  permission_class = (permissions.IsAuthenticated, )
-
-  def get(self, request, *args, **kwargs):
-    path = ReferenceMaterial.objects.get(id=kwargs['id'])
-    file_path = os.path.join(settings.MEDIA_ROOT, path)
-    if os.path.exists(file_path):
-      with open(file_path, 'rb') as fh:
-        response = HttpResponse(fh.read(), content_type="application/vnd.ms-excel")
-        response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
-        return response
-    return Response({
-        'message': _('File not found')
-    }, status=status.HTTP_404_NOT_FOUND)
-
-# ## Assignmnet submission view
-
 class AssignmentSubmissionCreateListAPIView(generics.GenericAPIView):
   permission_classes = (permissions.IsAuthenticated, )
 
@@ -458,12 +412,12 @@ class AssignmentSubmissionCreateListAPIView(generics.GenericAPIView):
       return Response({
         'error' : _('No such assignment exists')
       }, status=status.HTTP_404_NOT_FOUND)
-    
+
     if user.is_student or not hasClassroomPermission(user, classroom):
       return Response({
         'error': _('Not authorized to do this action')
       })
-    
+
     queryset = assignment.assignment_submissions.all()
     print(queryset)
     serializer = AssignmentSubmissionDetailListSerializer(queryset, many=True)
@@ -480,12 +434,12 @@ class AssignmentSubmissionCreateListAPIView(generics.GenericAPIView):
       return Response({
         'error' : _('No such assignment exists')
       }, status=status.HTTP_404_NOT_FOUND)
-    
+
     if user.is_teacher or not hasClassroomPermission(user, classroom):
       return Response({
         'error': _('Not authorized to do this action')
       })
-  
+
     try:
       instance = AssignmentSubmission.objects.get(Q(student_id=user) & Q(assignment_id=assignment))
       serializer = AssignmentSubmissionStudentUpdateSerializer(data=request.data)

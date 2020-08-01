@@ -13,7 +13,7 @@ def upload_notes_file(instance, filename):
             classroom=str(instance.classroom_id.id),
             filename="ReferenceMaterial"+str(instance.id)
         )
-def upload_submission_file(instance, filename):  
+def upload_submission_file(instance, filename):
     return "submissions/{classroom}/{filename}".format(
         classroom=str(instance.assignment_id.classroom_id.id),
         filename="Submission"+str(instance.id)
@@ -32,22 +32,22 @@ class Classroom(models.Model):
 
   def __str__(self):
     return self.course_name
-  
+
   def get_teacher(self):
     return self.teacher
 
   def get_sudents(self):
     return self.classroom_students.all()
-  
+
   def get_assignments(self):
     return self.assignments.all()
-  
+
   def get_notes(self):
     return self.reference_materials.all()
-  
+
   def get_assignment_submissions(self):
     return self.assignment_submissions.all()
-  
+
   def get_pending_join_requests(self):
     return self.pending_requests.all()
 

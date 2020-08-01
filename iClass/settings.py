@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     #custom_apps
     'accounts.apps.AccountsConfig',
     'classroom.apps.ClassroomConfig',
+    'quiz.apps.QuizConfig',
 ]
 
 MIDDLEWARE = [

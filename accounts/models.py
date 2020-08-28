@@ -24,7 +24,7 @@ class CustomUserManager(BaseUserManager):
   def create_user(self, email, password=None, username=None, is_student=False, is_teacher=False, **extra_fields):
     extra_fields.setdefault('is_superuser', False)
     return _create_user(email, password, username, is_student, is_teacher, **extra_fields)
-  
+
   def create_superuser(self, email, password=None, username=None, is_student=False, is_teacher=False, **extra_fields):
     extra_fields.setdefault('is_superuser', True)
     if extra_fields.get('is_superuser') is False:
@@ -39,7 +39,7 @@ class User(AbstractBaseUser, PermissionsMixin):
   is_student          = models.BooleanField(_("student"), default=False)
   is_teacher          = models.BooleanField(_("teacher"), default=False)
   avatar              = models.ImageField(upload_to='avatars/', null=True, blank=True)
-  
+
   date_joined         = models.DateTimeField(verbose_name="Date Joined", auto_now_add=True)
   last_login          = models.DateTimeField(verbose_name="Last Login", auto_now=True)
   is_active           = models.BooleanField(verbose_name="Active", default=True)

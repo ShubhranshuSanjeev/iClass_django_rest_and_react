@@ -1,3 +1,5 @@
+import datetime
+
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
@@ -9,6 +11,7 @@ from rest_framework.response import Response
 
 from quiz.models import (
     Quiz,
+    QuizStudentPermission,
     Question,
     Answer,
     Sitting,
@@ -41,12 +44,14 @@ class QuizListCreateAPIView(generics.GenericAPIView):
     permission_classes = (permissions.IsAuthenticated, )
 
     def get(self, request, *args, **kwargs):
-        classroom = Classroom.objects.get(id__exact=self.kwargs.get('pk'))
+        user = request.user
+        classroom = Classroom.objects.get(id__exact=self.kwargs.get('classroom'))
 
         if not hasClassroomPermission(user, classroom):
             return unauthorizedRequest()
 
         quizzes = classroom.quizzes.all()
+
         return Response({
             'message': _('List of Quizzes.'),
             'quizzes': QuizListSerializer(quizzes, many=True).data
@@ -54,16 +59,45 @@ class QuizListCreateAPIView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         user = request.user
-        classroom = Classroom.objects.get(id__exact=self.kwargs.get('pk'))
+        classroom = Classroom.objects.get(id__exact=self.kwargs.get('classroom'))
 
         if not hasClassroomPermission(user, classroom) or user.is_student:
             return unauthorizedRequest()
 
-        serializer = QuizSerializer(data=request.data)
+        data = {
+            'classroom': classroom.id,
+            'name': request.data.get('name'),
+            'max_attempts': request.data.get('max_attempts'),
+        }
+
+        duration = request.data.get('duration')
+        [d, h, m, s] = [int(inp) for inp in duration.split()]
+        duration = datetime.timedelta(days = d, hours=h, minutes=m, seconds=s)
+
+        start_time = request.data.get('start_time')
+        [d, m, y, h, mi] = [int(inp) for inp in start_time.split()]
+        start_time = datetime.datetime(y, m, d, h, mi)
+
+        end_time = request.data.get('end_time')
+        [d, m , y, h, mi] = [int(inp) for inp in end_time.split()]
+        end_time = datetime.datetime(y, m, d, h, mi)
+
+        data['duration'] = duration
+        data['start_time'] = start_time
+        data['end_time'] = end_time
+
+        serializer = QuizSerializer(data=data)
         serializer.is_valid(raise_exception = True)
         serializer.validated_data['owner'] = user
-        serializer.validated_data['classroom'] = classroom
         quiz_instance = serializer.create(serializer.validated_data)
+
+        classroom_students = classroom.students.all()
+        for student in classroom_students:
+            instance = QuizStudentPermission(
+                quiz = quiz_instance,
+                student_id = student.student_id.id
+            )
+            instance.save()
 
         return Response({
             'message' : _('Quiz successfully created'),
@@ -76,7 +110,7 @@ class QuizUpdateRetriveAPIView(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         user = request.user
-        classroom = Classroom.objects.get(id__exact = kwargs.get('classroom_id'))
+        classroom = Classroom.objects.get(id__exact = kwargs.get('classroom'))
         quiz = Quiz.objects.get(id__exact = kwargs.get('pk'))
 
         if not hasClassroomPermission(user, classroom):
@@ -102,7 +136,7 @@ class QuizUpdateRetriveAPIView(generics.GenericAPIView):
 
     def patch(self, request, *args, **kwargs):
         user = request.user
-        classroom = Classroom.objects.get(id_exact=kwargs.get('classroom_id'))
+        classroom = Classroom.objects.get(id_exact=kwargs.get('classroom'))
         quiz = Quiz.objects.get(id_exact=kwargs.get('pk'))
 
         if not hasClassroomPermission(user, classroom) or not ownsQuiz(user, quiz):

@@ -13,6 +13,7 @@ class Quiz(models.Model):
     name                    = models.CharField(max_length=255)
     duration                = models.DurationField(verbose_name=_("quiz duration"))
     start_time              = models.DateTimeField(verbose_name=_("quiz start time"))
+    end_time                = models.DateTimeField(verbose_name=_("quiz end time"))
     publish_results         = models.BooleanField(default=False)
     enable_quiz_for_all     = models.BooleanField(default=False)
     max_attempts            = models.PositiveIntegerField()

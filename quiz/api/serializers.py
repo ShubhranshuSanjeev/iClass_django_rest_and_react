@@ -22,6 +22,7 @@ class QuizSerializer(serializers.ModelSerializer):
         name            = validated_data.get('name')
         duration        = validated_data.get('duration')
         start_time      = validated_data.get('start_time')
+        end_time        = validated_data.get('end_time')
         max_attempts    = validated_data.get('max_attempts')
         classroom       = validated_data.get('classroom')
         owner           = validated_data.get('owner')
@@ -32,6 +33,7 @@ class QuizSerializer(serializers.ModelSerializer):
             name = name,
             duration = duration,
             start_time = start_time,
+            end_time = end_time,
             max_attempts = max_attempts,
         )
         instance.save()

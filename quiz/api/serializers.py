@@ -64,8 +64,7 @@ class QuizStudentPermissionSerializer(serializers.ModelSerializer):
     student = serializers.SerializerMethodField()
     class Meta:
         model = QuizStudentPermission
-        fields = ('id', 'student', )
+        fields = ('id', 'student', 'allowed_to_attempt')
 
     def get_student(self, obj):
-        student = UserSerializer(obj.student_id).data
-        return student
+        return obj.student.get_fullname()

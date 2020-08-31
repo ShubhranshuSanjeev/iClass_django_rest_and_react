@@ -55,7 +55,7 @@ class QuizListCreateAPIView(generics.GenericAPIView):
 
         return Response({
             'message': _('List of Quizzes.'),
-            'quizzes': QuizListSerializer(quizzes, many=True).data
+            'quizzes': QuizSerializer(quizzes, many=True).data
         }, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
@@ -112,22 +112,23 @@ class QuizUpdateRetriveAPIView(generics.GenericAPIView):
         user = request.user
         classroom = Classroom.objects.get(id__exact = kwargs.get('classroom'))
         quiz = Quiz.objects.get(id__exact = kwargs.get('pk'))
-
+        print(quiz.classroom)
         if not hasClassroomPermission(user, classroom):
             return unauthorizedRequest()
 
         data = {
-            'classroom': quiz.get('classroom'),
-            'name': quiz.get('name'),
-            'duration': quiz.get('duration'),
-            'start_time': quiz.get('start_time'),
-            'end_time': quiz.get('end_time'),
-            'max_attempts': quiz.get('max_attempts')
+            'id' : quiz.id,
+            'classroom': quiz.classroom,
+            'name': quiz.name,
+            'duration': quiz.duration,
+            'start_time': quiz.start_time,
+            'end_time': quiz.end_time,
+            'max_attempts': quiz.max_attempts
         }
 
         if user.is_teacher:
-            data['publish_results'] = quiz.get('publish_results')
-            data['enable_quiz_for_all'] = quiz.get('enable_quiz_for_all')
+            data['publish_results'] = quiz.publish_results
+            data['enable_quiz_for_all'] = quiz.enable_quiz_for_all
 
         serialized_data = QuizSerializer(data)
 
@@ -164,11 +165,11 @@ class QuizStudentPermissionAPIView(generics.GenericAPIView):
             return unauthorizedRequest()
 
         data = quiz.permissions.all()
-        serialized_data = QuizStudentPermissionSerializer(permissions, many=True)
+        serialized_data = QuizStudentPermissionSerializer(data, many=True)
 
         return Response({
             'message': _('List of Student Permissions'),
-            'studentPermissions': serialized_data.data
+            'permissions': serialized_data.data
         }, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
@@ -181,7 +182,7 @@ class QuizStudentPermissionAPIView(generics.GenericAPIView):
 
         for record in request.data:
             instance = QuizStudentPermission.objects.get(id__iexact=record.get('id'))
-            if not instance.allowed_to_attempt == record.get('allowed_to_attempt'):
+            if instance.allowed_to_attempt ^ (record.get('allowed_to_attempt') is 'True'):
                 instance.allowed_to_attempt = not instance.allowed_to_attempt
                 instance.save()
 

@@ -20,7 +20,8 @@ from quiz.models import (
 
 from .serializers import (
     QuizSerializer,
-    QuizListSerializer
+    QuizListSerializer,
+    QuizStudentPermissionSerializer
 )
 
 from accounts.models import User
@@ -104,7 +105,6 @@ class QuizListCreateAPIView(generics.GenericAPIView):
             'quiz': QuizSerializer(quiz_instance, context=self.get_serializer_context()).data
         }, status=status.HTTP_201_CREATED)
 
-
 class QuizUpdateRetriveAPIView(generics.GenericAPIView):
     permission_classes = (permissions.IsAuthenticated, )
 
@@ -121,6 +121,7 @@ class QuizUpdateRetriveAPIView(generics.GenericAPIView):
             'name': quiz.get('name'),
             'duration': quiz.get('duration'),
             'start_time': quiz.get('start_time'),
+            'end_time': quiz.get('end_time'),
             'max_attempts': quiz.get('max_attempts')
         }
 
@@ -151,6 +152,39 @@ class QuizUpdateRetriveAPIView(generics.GenericAPIView):
             'quiz': QuizSerializer(instance).data
         }, status=status.HTTP_200_OK)
 
+class QuizStudentPermissionAPIView(generics.GenericAPIView):
+    permission_classes = (permissions.IsAuthenticated, )
 
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        classroom = Classroom.objects.get(id__iexact=self.kwargs.get('classroom'))
+        quiz = Quiz.objects.get(id__iexact=self.kwargs.get('pk'))
 
+        if not hasClassroomPermission(user, classroom) and ownsQuiz(user, quiz):
+            return unauthorizedRequest()
 
+        data = quiz.permissions.all()
+        serialized_data = QuizStudentPermissionSerializer(permissions, many=True)
+
+        return Response({
+            'message': _('List of Student Permissions'),
+            'studentPermissions': serialized_data.data
+        }, status=status.HTTP_200_OK)
+
+    def patch(self, request, *args, **kwargs):
+        user = request.user
+        classroom = Classroom.objects.get(id__iexact=self.kwargs.get('classroom'))
+        quiz = Quiz.objects.get(id__iexact=self.kwargs.get('pk'))
+
+        if not hasClassroomPermission(user, classroom) and ownsQuiz(user, quiz):
+            return unauthorizedRequest()
+
+        for record in request.data:
+            instance = QuizStudentPermission.objects.get(id__iexact=record.get('id'))
+            if not instance.allowed_to_attempt == record.get('allowed_to_attempt'):
+                instance.allowed_to_attempt = not instance.allowed_to_attempt
+                instance.save()
+
+        return Response({
+            'message': _('Updated Quiz Permissions'),
+        }, status=status.HTTP_200_OK)

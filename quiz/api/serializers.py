@@ -4,11 +4,13 @@ from django.utils.translation import gettext_lazy as _
 
 from quiz.models import (
     Quiz,
+    QuizStudentPermission,
     Question,
     Answer,
     Sitting,
     StudentAnswer
 )
+from accounts.api.serializers import UserSerializer
 
 from django.contrib import auth
 User = auth.get_user_model()
@@ -57,3 +59,13 @@ class QuizListSerializer(serializers.ModelSerializer):
 
     def get_owner_name(self, obj):
         return obj.owner.get_fullname()
+
+class QuizStudentPermissionSerializer(serializers.ModelSerializer):
+    student = serializers.SerializerMethodField()
+    class Meta:
+        model = QuizStudentPermission
+        fields = ('id', 'student', )
+
+    def get_student(self, obj):
+        student = UserSerializer(obj.student_id).data
+        return student
